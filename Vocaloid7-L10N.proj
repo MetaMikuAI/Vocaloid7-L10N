@@ -1,0 +1,32 @@
+<Project DefaultTargets="Build">
+  <Import Project="Directory.Build.props" />
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Artifacts>$(MSBuildThisFileDirectory)artifacts/</Artifacts>
+    <PackageDirectory>$(Artifacts)package/</PackageDirectory>
+    <PackageFile>$(Artifacts)Vocaloid7-L10N-$(Version)-win-x64.zip</PackageFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <AppProject Include="src/Launcher/Launcher.csproj;src/StartupHook/StartupHook.csproj" />
+  </ItemGroup>
+  <Target Name="Restore">
+    <MSBuild Projects="@(AppProject)" Targets="Restore" Properties="Configuration=$(Configuration)" />
+  </Target>
+  <Target Name="Build">
+    <MSBuild Projects="@(AppProject)" Targets="Build" Properties="Configuration=$(Configuration);OutputPath=$(Artifacts)bin/" />
+  </Target>
+  <Target Name="Package" DependsOnTargets="Build">
+    <Error Condition="'$(ReleaseTag)' != '' and '$(ReleaseTag)' != 'v$(Version)'" Text="Release tag must match v$(Version)." />
+    <RemoveDir Directories="$(PackageDirectory)" />
+    <ItemGroup>
+      <PackageBinary Include="$(Artifacts)bin/Vocaloid7.L10N.Launcher.exe;$(Artifacts)bin/Vocaloid7.L10N.Launcher.dll;$(Artifacts)bin/Vocaloid7.L10N.Launcher.deps.json;$(Artifacts)bin/Vocaloid7.L10N.Launcher.runtimeconfig.json;$(Artifacts)bin/Vocaloid7.L10N.StartupHook.dll" />
+      <LocaleFile Include="locales/*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PackageBinary)" DestinationFolder="$(PackageDirectory)" />
+    <Copy SourceFiles="@(LocaleFile)" DestinationFolder="$(PackageDirectory)locales" />
+    <Copy SourceFiles="README.md" DestinationFolder="$(PackageDirectory)" />
+    <MSBuild Projects="tools/PackageCheck/PackageCheck.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" />
+    <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)tools/PackageCheck/bin/$(Configuration)/net10.0/PackageCheck.dll&quot; --sanitize-apphost &quot;$(PackageDirectory)Vocaloid7.L10N.Launcher.exe&quot;" />
+    <ZipDirectory SourceDirectory="$(PackageDirectory)" DestinationFile="$(PackageFile)" Overwrite="true" />
+  </Target>
+</Project>

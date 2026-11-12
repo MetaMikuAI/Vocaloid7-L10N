@@ -1,0 +1,54 @@
+name: Build and release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build ZIP
+        if: github.ref_type != 'tag'
+        run: dotnet build Vocaloid7-L10N.proj -c Release -t:Package
+      - name: Build versioned ZIP
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: dotnet build Vocaloid7-L10N.proj -c Release -t:Package -p:ReleaseTag="$env:RELEASE_TAG"
+      - name: Validate package
+        run: dotnet run --project tools/PackageCheck -c Release -- artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: artifacts
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" artifacts/*.zip --verify-tag --title "$RELEASE_TAG" --notes "Extract into the VOCALOID7 Editor folder and overwrite existing extension files."
